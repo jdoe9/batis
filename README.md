@@ -2,6 +2,10 @@
 
 This repository contains the necessary code to reproduce the experiments shown in **BATIS: Bayesian Approaches for Targeted Improvement of Species Distribution Models**. To download the associated dataset, please see our [Hugging Face repository](https://huggingface.co/datasets/anonsubmit/BATIS). 
 
+## License 
+
+This work is licensed under a
+[Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License](https://creativecommons.org/licenses/by-nc/4.0/).
 
 ## Installation
 
@@ -48,9 +52,5 @@ Our metrics can be computed through the following scripts :
 * `Bayesian_Updates/Evaluation_Scripts/evaluate_metrics_hotspots.py` : To evaluate our metrics for each hotspot, and for each bird, on a given number of bayesian updates.
 * `Bayesian_Updates/Updating_Scripts/evaluate_metrics_wholedataset_za.py` : To evaluate the average performance of any approach across a whole dataset
 
-## License 
-
-This work is licensed under a
-[Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License](https://creativecommons.org/licenses/by-nc/4.0/).
 
 
