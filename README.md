@@ -43,6 +43,38 @@ For baselines that only require an input vector instead of a matrix (i.e. Multi-
 
 Models implementations can be found in the `Models/` folder. Examples of all config files for different baselines and subdatasets are available in `configs`. The training scripts also contain the code to test the model and save the individual predictions for each hotspot to a pre-determined folder. 
 
+### Uncertainty-Agnostic Methods
+* **Mean Encounter Rate :** To generate results with our mean encounter rate baseline, use `Models/mean_enc.py`
+* **Multi-Layer Perceptron :** To train our MLP baseline and generate results, use `Models/mlp_algo.py`
+* **Random Forest :** To train our RF baseline and generate results, use `Models/rf_algorithm.py`
+* **Resnet-18 :** To train our Resnet18 baseline and generate results, use `Models/train_resnet18.py`. This code heavily re-uses part of the original SatBird repository. The script accepts a config file as an argument. To train the model on e.g. USA Summer, use
+   ```
+   python train_resnet18.py args.config=configs/USA_Summer/resnet18.yaml
+   ```
+### Uncertainty-Aware Methods
+
+* **Fixed Variance :** Our fixed variance approach doesn't require any modification to the Resnet-18 training script, so you can use `Models/train_resnet18.py`.
+* **Historical Variance :** Our historical variance approach doesn't require any modification to the Resnet-18 training script, so you can use `Models/train_resnet18.py`.
+* **Monte-Carlo Dropout :** To train our Resnet18-MCD approach and generate results, use `Models/train_dropout.py`. The script accepts a config file as an argument. To train the model on e.g. USA Summer, use
+   ```
+   python train_dropout.py --config configs/USA_Summer/dropout1.yaml
+   ```
+* **Mean-Variance Network :** To train our Resnet18-MVN approach and generate results, use `Models/train_mvn.py`. The script accepts a config file as an argument. To train the model on e.g. USA Summer, use
+   ```
+   python train_dropout.py --config configs/USA_Summer/resnet_mvn_1.yaml
+   ```
+* **Heteroscedastic Regression Neural Network :** To train our Resnet18-HetReg approach and generate results, use `Models/train_hetreg.py`. The script accepts a config file as an argument. To train the model on e.g. USA Summer, use
+   ```
+   python train_dropout.py --config configs/USA_Summer/resnet_hetreg_1.yaml
+   ```
+* **Shallow Ensembles :** To train our Resnet18-SE approach and generate results, use `Models/train_shallow_ens.py`. The script accepts a config file as an argument. To train the model on e.g. USA Summer, use
+   ```
+   python train_dropout.py --config configs/USA_Summer/shallow1.yaml
+   ```
+* **Deep Ensembles :** To train our Resnet18-DE approach and generate results, perform the following steps 3 times, then average the results
+   - Run `Models/train_resnet18.py` 5 times
+   - Average predictions across the 5 trained models, and compute ensemble variance too
+   
 ## Bayesian Updating Framework 
 
 The code for our Bayesian Updating Framework can be found in the `Bayesian_Updates/` folder. Use : 
