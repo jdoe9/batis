@@ -5,6 +5,7 @@ from omegaconf import OmegaConf, DictConfig
 from typing import Any, Dict, cast
 import pytorch_lightning as pl
 import argparse
+import random 
 
 import torch
 import torch.nn as nn
@@ -20,17 +21,16 @@ from src.losses.metrics import get_metrics
 
 from src.trainer.trainer import EbirdDataModule
 from src.utils.compute_normalization_stats import *
-import random
 
-# Model Class for Shallow Ensembles Network
-class Resnet18_Shallow(nn.Module):
+# Model Class for HetReg Network
+class ResNet18MeanVariance(nn.Module):
     def __init__(self, output_dim, opts, use_sigmoid_mean=True):
         """
         Args:
             output_dim (int): Number of output components (N).
             use_sigmoid_mean (bool): Whether to apply a sigmoid activation on the mean predictions.
         """
-        super(Resnet18_Shallow, self).__init__()
+        super(ResNet18MeanVariance, self).__init__()
         self.use_sigmoid_mean = use_sigmoid_mean
         self.resnet = models.resnet18(pretrained=True)
         self.opts = opts 
@@ -45,46 +45,88 @@ class Resnet18_Shallow(nn.Module):
             if self.opts.experiment.module.pretrained:
                 # self.model.conv1.weight.data[:, :orig_channels, :, :] = weights
                 self.resnet.conv1.weight.data = init_first_layer_weights(get_nb_bands(self.bands), weights)
+        
+        self.feature_extractor = nn.Sequential(
+            *list(self.resnet.children())[:-2],       # keep conv layers
+            nn.Dropout2d(p=0.2)         # MC‑Dropout (epistemic)
+        )
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        d = self.resnet.fc.in_features
 
-        # Double the output dimension: one half for mean and one half for log-variance.
-        self.resnet.fc = nn.Linear(512, 5 * output_dim)
+        self.head = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(d, 2*output_dim)
+        )
 
-    
     def forward(self, x):
         # Get combined output vector (shape: [batch_size, 2*output_dim])
 
-        out = self.resnet(x)
-        mean1, mean2, mean3, mean4, mean5 = torch.chunk(out, chunks=5, dim=1)
-                
+        feat = self.feature_extractor(x)
+        h = self.pool(feat)
+        out = self.head(h)
+        
+        mean, raw_variance = torch.chunk(out, chunks=2, dim=1)
+        
         # Optionally apply sigmoid to the mean if predictions are meant to be in [0,1]
         if self.use_sigmoid_mean:
-            mean1 = torch.sigmoid(mean1)
-            mean2 = torch.sigmoid(mean2)
-            mean3 = torch.sigmoid(mean3)
-            mean4 = torch.sigmoid(mean4)
-            mean5 = torch.sigmoid(mean5)
+            mean = torch.sigmoid(mean)
+        # Exponentiate the log variance to get a positive variance value
 
-        return mean1, mean2, mean3, mean4, mean5
+         # Clamp the log_variance to a specific range for numerical stability.
+        max_var = mean * (1 - mean)
+        variance = max_var * torch.sigmoid(raw_variance)
+        log_variance = torch.log(variance + 1e-5)
+
+        return mean, variance, log_variance
         # Double the output dimension: one half for mean and one half for log-variance.
         #self.resnet.fc = nn.Linear(512, 2 * output_dim)
     
 # Define the Gaussian negative log likelihood loss function.
-def custom_cross_entropy_loss(pred, target, reduction='mean'):
-        """
-        target: ground truth
-        pred: prediction
-        reduction: mean, sum, none
-        """
-        loss = (-1 * target * torch.log(pred + 1e-7) - 1 * (1 - target) * torch.log(
-            1 - pred + 1e-7))
-        if reduction == 'mean':
-            loss = loss.mean()
-        elif reduction == 'sum':
-            loss = loss.sum()
-        else:  # reduction = None
-            loss = loss
+def gaussian_nll_loss(mean, log_variance, target):
+    """
+    Computes the Gaussian negative log likelihood loss.
+    
+    For each element, the loss is:
+        loss = 0.5 * log_variance + 0.5 * ((target - mean)^2 / exp(log_variance))
+        
+    The constant term (0.5 * log(2π)) is omitted, as it does not affect optimization.
 
-        return loss
+    Args:
+        mean (Tensor): Predicted means.
+        log_variance (Tensor): Predicted log variances.
+        target (Tensor): Ground truth targets.
+        
+    Returns:
+        loss (Tensor): Mean loss over the batch.
+    """
+
+    loss = 0.5 * log_variance + 0.5 * ((target - mean)**2 / torch.exp(log_variance))
+    return loss.mean()
+
+def combined_loss(mean, log_variance, target, warmup=False, lambda_mean=0.01, lambda_sigma=0.01, lambda_overconf=0.1):
+    """
+    Computes the loss for an MVE network.
+    When warmup is True, the variance is fixed by replacing log_variance with 0 (i.e. variance = 1).
+    """
+    if warmup:
+        loss = (0.5 * -1.3863) + 0.5 * ((target - mean)**2 / 0.25)
+    else:
+        loss = gaussian_nll_loss(mean, log_variance, target)
+    
+    nll_loss = loss.mean()
+    
+    # L2 regularization on mean and log-variance
+    mean_reg_loss = lambda_mean * torch.mean(mean ** 2)
+
+    if warmup:
+        sigma_reg_loss = 0
+    else:
+        sigma_reg_loss = lambda_sigma * torch.mean(log_variance ** 2)
+
+
+    total_loss = nll_loss + mean_reg_loss + sigma_reg_loss
+    return total_loss
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -98,7 +140,6 @@ def main():
 
     config = load_opts(config_path, default=default_config)
     global_seed = random.randint(1, 999)
-    print(global_seed)
 
     config.variables.bioclim_means, config.variables.bioclim_std, config.variables.ped_means, config.variables.ped_std = compute_means_stds_env_vars(
             root_dir=config.data.files.base,
@@ -145,7 +186,7 @@ def main():
                           )
     
     print(config.experiment.module.lr)
-    model = Resnet18_Shallow(output_dim=755, opts=config)
+    model = ResNet18MeanVariance(output_dim=1054, opts=config)
     model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=config.experiment.module.lr, weight_decay=0.00001)
@@ -168,12 +209,16 @@ def main():
     val_loader = dm.val_dataloader()
 
     num_epochs = config.max_epochs
+
     opts = config
 
+    warmup_epochs = 5
     for epoch in range(num_epochs):
+        warmup = False if epoch > 5 else True
         print(f"Epoch {epoch+1} / {num_epochs}")
+        print("Warmup : " + str(warmup))
 
-        # Training phase
+     
         model.train()
         sys.stdout.flush()
 
@@ -182,13 +227,11 @@ def main():
             sys.stdout.flush()
             optimizer.zero_grad()
 
-            # Move inputs to device and squeeze if necessary
             x = batch['sat'].to(device).squeeze(1)
             y = batch['target'].to(device)
 
-            hotspot_id = batch['hotspot_id']  # assuming hotspot_id need not be moved to GPU
+            hotspot_id = batch['hotspot_id'] 
 
-            # Compute the new weights based on loss-weight type
             weighted_loss_operations = {
                 "sqrt": torch.sqrt,
                 "log": torch.log,
@@ -197,23 +240,14 @@ def main():
 
             weight_type = opts.experiment.module.loss_weight
             
-            # Ensure that num_complete_checklists is on the proper device
             new_weights_val = weighted_loss_operations[weight_type](batch["num_complete_checklists"].to(device))
             new_weights = torch.ones_like(y, device=device) * new_weights_val.view(-1, 1)
 
-            mean1, mean2, mean3, mean4, mean5 = model(x)
+            mean, variance, log_variance = model(x)
 
-            pred1 = mean1.type_as(y)
-            pred2 = mean2.type_as(y)
-            pred3 = mean3.type_as(y)
-            pred4 = mean4.type_as(y)
-            pred5 = mean5.type_as(y)
+            pred = mean.type_as(y)
 
-            loss = custom_cross_entropy_loss(pred1, y)
-            loss += custom_cross_entropy_loss(pred2, y)
-            loss += custom_cross_entropy_loss(pred3, y)
-            loss += custom_cross_entropy_loss(pred4, y)
-            loss += custom_cross_entropy_loss(pred5, y)
+            loss = combined_loss(pred, log_variance, y, warmup=warmup)
 
             loss.backward()
             optimizer.step()
@@ -223,8 +257,6 @@ def main():
         avg_loss = running_loss / (batch_idx + 1)
         print(f"Epoch {epoch+1}/{num_epochs}, Average Loss: {avg_loss:.4f}")
 
-
-        # Validation phase
         model.eval()
         val_loss = 0
         with torch.no_grad():
@@ -233,27 +265,17 @@ def main():
                 y = batch['target'].to(device)
                 hotspot_id = batch['hotspot_id']
 
-                mean1, mean2, mean3, mean4, mean5 = model(x)
+                mean, variance, log_variance = model(x)
 
-                pred1 = mean1.type_as(y)
-                pred2 = mean2.type_as(y)
-                pred3 = mean3.type_as(y)
-                pred4 = mean4.type_as(y)
-                pred5 = mean5.type_as(y)
+                pred = mean.type_as(y)
                 
-                loss = custom_cross_entropy_loss(pred1, y)
-                loss += custom_cross_entropy_loss(pred2, y)
-                loss += custom_cross_entropy_loss(pred3, y)
-                loss += custom_cross_entropy_loss(pred4, y)
-                loss += custom_cross_entropy_loss(pred5, y)
+                loss = combined_loss(pred, log_variance, y, warmup=warmup)
                 val_loss += loss.item()
 
         val_loss /= len(val_loader)
         print(f"Epoch {epoch+1} - Val Loss: {val_loss:.4f}")
         scheduler.step(val_loss)
 
-
-        # Test phase
         model.eval()
         test_loss = 0
         with torch.no_grad():
@@ -262,48 +284,25 @@ def main():
                 y = batch['target'].to(device)
                 hotspot_id = batch['hotspot_id']
 
-                mean1, mean2, mean3, mean4, mean5 = model(x)
+                mean, variance, log_variance = model(x)
 
-                pred1 = mean1.type_as(y)
-                pred2 = mean2.type_as(y)
-                pred3 = mean3.type_as(y)
-                pred4 = mean4.type_as(y)
-                pred5 = mean5.type_as(y)
+                pred = mean.type_as(y)
                 
-                loss = custom_cross_entropy_loss(pred1, y)
-                loss += custom_cross_entropy_loss(pred2, y)
-                loss += custom_cross_entropy_loss(pred3, y)
-                loss += custom_cross_entropy_loss(pred4, y)
-                loss += custom_cross_entropy_loss(pred5, y)
-
+                loss = combined_loss(pred, log_variance, y, warmup=warmup)
                 test_loss += loss
 
                 if opts.save_preds_path != "":
                     preds_path = opts.save_preds_path
-                    for i, elem in enumerate(pred1):
-                        np.save(os.path.join(preds_path, batch["hotspot_id"][i] + "_1.npy"),
+                    for i, elem in enumerate(pred):
+                        np.save(os.path.join(preds_path, batch["hotspot_id"][i] + ".npy"),
                             elem.cpu().detach().numpy())
-                    for i, elem in enumerate(pred2):
-                        np.save(os.path.join(preds_path, batch["hotspot_id"][i] + "_2.npy"),
-                            elem.cpu().detach().numpy())
-                    for i, elem in enumerate(pred3):
-                        np.save(os.path.join(preds_path, batch["hotspot_id"][i] + "_3.npy"),
-                            elem.cpu().detach().numpy())
-                    for i, elem in enumerate(pred4):
-                        np.save(os.path.join(preds_path, batch["hotspot_id"][i] + "_4.npy"),
-                            elem.cpu().detach().numpy())
-                    for i, elem in enumerate(pred5):
-                        np.save(os.path.join(preds_path, batch["hotspot_id"][i] + "_5.npy"),
-                            elem.cpu().detach().numpy())
-                        
 
         test_loss /= len(test_loader)
         print(f"Epoch {epoch+1} - Test Loss: {test_loss:.4f}")
         
         torch.save(model.state_dict(), opts.save_path + "/last.ckpt")
             
+    
+
     var = 1
     print(device)
-
-if __name__ == "__main__":
-    main()

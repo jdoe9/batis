@@ -142,8 +142,11 @@ def main():
     learning_rate = config.experiment.module.lr
     sigmoid_activation = nn.Sigmoid()
 
-    device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
-
+    device = torch.device("cuda" if torch.cuda.is_available() else
+                          'mps' if torch.backends.mps.is_available() 
+                          else 'cpu'
+                          )
+    
     print(config.experiment.module.lr)
     model = ResNet18Dropout(output_dim=755, opts=config)
     model.to(device)
