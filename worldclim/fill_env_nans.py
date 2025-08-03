@@ -16,7 +16,6 @@ import glob
 from tqdm import tqdm
 
 N_CPUS = 3
-
 H, W = 6,6
 
 # Example data with NaN values

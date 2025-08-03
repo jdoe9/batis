@@ -1,8 +1,3 @@
-"""
-main training script
-To run: python train.py args.config=$CONFIG_FILE_PATH
-"""
-
 import os
 import hydra
 import sys
@@ -10,6 +5,7 @@ from omegaconf import OmegaConf, DictConfig
 from typing import Any, Dict, cast
 import pytorch_lightning as pl
 import argparse
+import random
 
 import torch
 import torch.nn as nn
@@ -27,6 +23,7 @@ from src.losses.metrics import get_metrics
 from src.trainer.trainer import EbirdDataModule
 from src.utils.compute_normalization_stats import *
 
+# Model Class for Mean Variance Network
 class ResNet18MeanVariance(nn.Module):
     def __init__(self, output_dim, opts, use_sigmoid_mean=True):
         """
@@ -119,9 +116,7 @@ def main():
     default_config = os.path.join(base_dir, "configs/defaults.yaml")
 
     config = load_opts(config_path, default=default_config)
-    global_seed = 877
-    print(global_seed)
-    print("SUP")
+    global_seed = random.randint(1, 999)
 
     config.variables.bioclim_means, config.variables.bioclim_std, config.variables.ped_means, config.variables.ped_std = compute_means_stds_env_vars(
             root_dir=config.data.files.base,
@@ -188,8 +183,6 @@ def main():
     val_loader = dm.val_dataloader()
 
     num_epochs = config.max_epochs
-    print("Everything ok so far")
-
     opts = config
 
     warmup_epochs = 5
@@ -198,9 +191,7 @@ def main():
         print(f"Epoch {epoch+1} / {num_epochs}")
         print("Warmup : " + str(warmup))
 
-        # ------------------------------
         # Training phase
-        # ------------------------------
         model.train()
         sys.stdout.flush()
 
@@ -242,10 +233,8 @@ def main():
         avg_loss = running_loss / (batch_idx + 1)
         print(f"Epoch {epoch+1}/{num_epochs}, Average Loss: {avg_loss:.4f}")
 
-        # ------------------------------
-        # Validation phase
-        # ------------------------------
 
+        # Validation phase
         model.eval()
         val_loss = 0
         with torch.no_grad():
@@ -265,9 +254,8 @@ def main():
         print(f"Epoch {epoch+1} - Val Loss: {val_loss:.4f}")
         scheduler.step(val_loss)
 
-        # ------------------------------
-        # Test phase (optional)
-        # ------------------------------
+
+        # Test phase 
         model.eval()
         test_loss = 0
         with torch.no_grad():
@@ -298,8 +286,6 @@ def main():
         
         torch.save(model.state_dict(), opts.save_path + "/last.ckpt")
             
-    
-
     var = 1
     print(device)
 

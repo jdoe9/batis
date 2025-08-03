@@ -5,6 +5,7 @@ from omegaconf import OmegaConf, DictConfig
 from typing import Any, Dict, cast
 import pytorch_lightning as pl
 import argparse
+import random 
 
 import torch
 import torch.nn as nn
@@ -12,9 +13,6 @@ import torch.optim as optim
 import torchvision.models as models
 from src.dataset.dataloader import EbirdVisionDataset
 from src.transforms.transforms import get_transforms
-
-#from pytorch_lightning.callbacks import ModelCheckpoint
-
 from src.utils.config_utils import load_opts
 from src.dataset.dataloader import get_subset
 from src.trainer.utils import get_target_size, get_nb_bands, get_scheduler, init_first_layer_weights, \
@@ -24,7 +22,7 @@ from src.losses.metrics import get_metrics
 from src.trainer.trainer import EbirdDataModule
 from src.utils.compute_normalization_stats import *
 
-# Define your Mean-Variance ResNet18 Model.
+# Model Class for HetReg Network
 class ResNet18MeanVariance(nn.Module):
     def __init__(self, output_dim, opts, use_sigmoid_mean=True):
         """
@@ -141,8 +139,7 @@ def main():
     default_config = os.path.join(base_dir, "configs/defaults.yaml")
 
     config = load_opts(config_path, default=default_config)
-    global_seed = 877
-    print(global_seed)
+    global_seed = random.randint(1, 999)
 
     config.variables.bioclim_means, config.variables.bioclim_std, config.variables.ped_means, config.variables.ped_std = compute_means_stds_env_vars(
             root_dir=config.data.files.base,
@@ -209,7 +206,6 @@ def main():
     val_loader = dm.val_dataloader()
 
     num_epochs = config.max_epochs
-    print("Everything ok so far")
 
     opts = config
 

@@ -193,12 +193,13 @@ def mse_single(pred: torch.Tensor, target: torch.Tensor) -> float:
 
 
 args = parser.parse_args()
-
-test_data = pd.read_csv("test_filtered.csv")
+test_data = pd.read_csv("test_filtered.csv") # Read test dataset
 hotspots_list = list(test_data['hotspot_id'])
+
+# Folder names (for saving results)
 seed_id = "mvn_877"
 variance_id = "mvn_var"
-steps_range = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+steps_range = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] # Save results per step (1 bayesian update, 2 update, ... up to 10 bayesian updates)
 
 for step_stage in steps_range:
     predictions_folder = f"/Users/Desktop/Testing_Env/evaluate_results/updates_res/{seed_id}/{variance_id}/step_{step_stage}/"
@@ -220,11 +221,15 @@ for step_stage in steps_range:
     top30_df = []
 
     list_birds = 0
+
+    # Results by hotspots
     for hotspot in hotspots_list:
         print(hotspot)
+        # Read prediction at hotspot
         preds = pd.read_csv(predictions_folder + hotspot + ".csv")
         preds = np.array(list(preds['encounter_rate']))
-    
+
+        # Read ground truth at hotspot
         target_df = pd.read_csv(target_folder + hotspot + ".csv")
         target_array = np.array(list(target_df['is_observed']))
         list_birds = list(target_df['ebird_cord'])
@@ -232,6 +237,7 @@ for step_stage in steps_range:
         prediction = torch.tensor(preds)
         ground_truth = torch.tensor(target_array)
 
+        # Evaluate prediction at hotspot
         hotspot_df.append(hotspot)
         mse_df.append(mse_single(prediction, ground_truth))
         mae_df.append(mae_single(prediction, ground_truth))
@@ -243,28 +249,35 @@ for step_stage in steps_range:
     df_hotspot = pd.DataFrame.from_dict(dict_hotspot)
     df_hotspot.to_csv(results_by_hotspot_folder + "hotspot_results.csv", index=False)
 
+    # Results by bird
     for i in range(len(list_birds)):
-        bird_id = list_birds[i]
+        # For each bird... 
+        bird_id = list_birds[i] # Get bird name
         print(bird_id)
 
         hotspot_bird = []
         mae_bird = []
         mse_bird = []
         for hotspot in hotspots_list:
+            # For each hotspot...
             hotspot_bird.append(hotspot)
+
+            # Read prediction
             preds = pd.read_csv(predictions_folder + hotspot + ".csv")
-            preds = list(preds['encounter_rate'])[i]
+            preds = list(preds['encounter_rate'])[i] # Select prediction for bird i
             preds = np.array([preds])
-            
+
+            # Read ground truth
             target_df = pd.read_csv(target_folder + hotspot + ".csv")
-            target_array = np.array([list(target_df['is_observed'])[i]])
+            target_array = np.array([list(target_df['is_observed'])[i]]) # Select ground truth for bird i
 
             prediction = torch.tensor(preds)
             ground_truth = torch.tensor(target_array)
             
-            mse_bird.append(mse_single(prediction, ground_truth))
-            mae_bird.append(mae_single(prediction, ground_truth))
+            mse_bird.append(mse_single(prediction, ground_truth)) # Evaluate mse for bird i at hotspot x
+            mae_bird.append(mae_single(prediction, ground_truth)) # Evaluate mae for bird i at hotspot x
         
+        # Save predictions
         dict_bird = {"hotspot_id":hotspot_bird, "mse":mse_bird, "mae":mae_bird}
         df_bird = pd.DataFrame.from_dict(dict_bird)
         df_bird.to_csv(results_by_bird_folder + bird_id + ".csv", index=False)

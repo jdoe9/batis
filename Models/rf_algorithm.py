@@ -7,15 +7,22 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 import json
 import ast
+import random
 
+# Bioclimatic Variable Names (From WordClim)
 bioclimatic_raster_names = [
     "bio_1", "bio_2", "bio_3", "bio_4", "bio_5", "bio_6", "bio_7", "bio_8", "bio_9",
     "bio_10", "bio_11", "bio_12", "bio_13", "bio_14", "bio_15", "bio_16", "bio_17",
     "bio_18", "bio_19"
 ]
 
-RANDOM_STATE    = 581
-RF_TREES  = 100
+# Initialize Random Seed
+RANDOM_STATE = random.randint(1, 999)
+random.seed(RANDOM_STATE)
+np.random.seed(RANDOM_STATE)
+
+# Hyperparameters
+RF_TREES  = 100 # Number of trees
 
 def main():
     df_train = pd.read_csv("finalized_splits_kenya/train_filtered.csv")
@@ -30,10 +37,11 @@ def main():
 
     X_test = df_test[bioclimatic_raster_names].astype(np.float32).to_numpy()
 
+    # Model Pipeline
     model = Pipeline([
-        ("scaler", StandardScaler()),
+        ("scaler", StandardScaler()), # Normalize Data
         ("rf_bounded",
-         TransformedTargetRegressor(
+         TransformedTargetRegressor( # Random Forest Model
              regressor=RandomForestRegressor(
                  n_estimators=RF_TREES,
                  n_jobs=-1,
@@ -43,11 +51,13 @@ def main():
         )
     ])
 
+    # Train Model 
     model.fit(X, y)
 
     preds = model.predict(X_test) 
-    y_pred_scaled = np.clip(preds, 0, 1)
+    y_pred_scaled = np.clip(preds, 0, 1) # Constrain predictions to be in the [0, 1] range
 
+    # Save predictions
     for i in range(len(df_test)):
         hotspot = df_test.iloc[i]['hotspot_id']
         print(hotspot)

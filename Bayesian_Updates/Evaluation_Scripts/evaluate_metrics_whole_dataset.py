@@ -180,11 +180,13 @@ def mse_single(pred: torch.Tensor, target: torch.Tensor) -> float:
     # Convert from a tensor to a Python float
     return error.item()
 
+# Read Test Dataset
 test_data = pd.read_csv("/Volumes/My Passport/South_Africa/south_africa/test_filtered.csv")
 hotspots_list = list(test_data['hotspot_id'])
 n_hotspots = len(hotspots_list)
-seeds = ["predictions_mvn_za_1/", "predictions_mvn_za_2/", "predictions_mvn_za_3/"]
 
+# Prediction folder paths
+seeds = ["predictions_mvn_za_1/", "predictions_mvn_za_2/", "predictions_mvn_za_3/"]
 predictions_folder = "/Users/Desktop/Testing_Env/evaluate_results/bayesian_exploration_scripts/"
 target_folder = "/Users/Desktop/South_Africa/Encounter_Rates/dataframes/"
 
@@ -194,7 +196,7 @@ topk_final = []
 top10_final = []
 top30_final = []
 
-list_birds = 0
+# For each individual seed...
 for seed in seeds :
     mse_df = []
     mae_df = []
@@ -202,27 +204,33 @@ for seed in seeds :
     top10_df = []
     top30_df = []
     for hotspot in hotspots_list:
+        # For each hotspot in hotspot list...
         print(hotspot)
+
+        # Read prediction
         preds = np.load(predictions_folder + seed + hotspot + ".npy")
         
+        # Read ground truth
         target_df = pd.read_csv(target_folder + hotspot + ".csv")
         target_array = np.array(list(target_df['is_observed']))
 
         prediction = torch.tensor(preds)
         ground_truth = torch.tensor(target_array)
 
-        mse_df.append(mse_single(prediction, ground_truth)*100)
-        mae_df.append(mae_single(prediction, ground_truth)*100)
-        top10_df.append(custom_top10_single(ground_truth, prediction)*100)
-        top30_df.append(custom_top30_single(ground_truth, prediction)*100)
-        topk_df.append(custom_topk_single(prediction, ground_truth)*100)
+        mse_df.append(mse_single(prediction, ground_truth)*100) # Evaluate MSE at hotspot
+        mae_df.append(mae_single(prediction, ground_truth)*100) # Evaluate MAE at hotspot
+        top10_df.append(custom_top10_single(ground_truth, prediction)*100) # Evaluate top-10 at hotspot
+        top30_df.append(custom_top30_single(ground_truth, prediction)*100) # Evaluate top-30 at hotspot
+        topk_df.append(custom_topk_single(prediction, ground_truth)*100) # Evaluate top-k at hotspot
 
+    # Append average result
     mse_final.append(np.mean(mse_df))
     mae_final.append(np.mean(mae_df))
     topk_final.append(np.mean(topk_df))
     top10_final.append(np.mean(top10_df))
     top30_final.append(np.mean(top30_df))
 
+# Print results
 
 print("Average MAE : " + str(np.mean(mae_final)))
 print("STD MAE : " + str(np.std(mae_final)))

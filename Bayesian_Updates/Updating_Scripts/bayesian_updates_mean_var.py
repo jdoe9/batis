@@ -65,6 +65,7 @@ def posterior_mean(alphas, betas):
         raise ValueError("Posterior mean contains one or more non-positive elements.")
     return p_mean
 
+# Iterative updates
 if __name__ == "__main__":
     args = parser.parse_args()
     results_folder = args.res_folder

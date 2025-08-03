@@ -3,10 +3,13 @@ import numpy as np
 import ast 
 import ast
 
-df_test  = pd.read_csv("finalized_splits_kenya/test_filtered.csv")
+# Read Training Set
+df_test  = pd.read_csv("finalized_splits_kenya/train_filtered.csv")
 df_test["target"] = df_test["target"].apply(ast.literal_eval)
 y_matrix = np.array(list(df_test['target']))
 print(y_matrix.shape)
+
+# Compute Mean
 y_mean = y_matrix.mean(axis=0)
 print(y_mean.shape)
 

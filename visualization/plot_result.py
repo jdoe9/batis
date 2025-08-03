@@ -10,6 +10,10 @@ metric_target = "topk"
 metric_name = "Top-K"
 
 def get_mean_and_stdev_mae(seeds, mean_0, stdev_0):
+    """
+    Get mean vector and stdev vector for mae metric 
+    """
+
     val_arr = []
     for seed in seeds:
         mean_mae = []
@@ -27,6 +31,9 @@ def get_mean_and_stdev_mae(seeds, mean_0, stdev_0):
     return mean, stdev
 
 def get_mean_and_stdev_mse(seeds, mean_0, stdev_0):
+    """
+    Get mean vector and stdev vector for mse metric 
+    """
     val_arr = []
     for seed in seeds:
         mean_mae = []
@@ -44,6 +51,9 @@ def get_mean_and_stdev_mse(seeds, mean_0, stdev_0):
     return mean, stdev
 
 def get_mean_and_stdev_top10(seeds, mean_0, stdev_0):
+    """
+    Get mean vector and stdev vector for top-10 metric 
+    """
     val_arr = []
     for seed in seeds:
         mean_mae = []

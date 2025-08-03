@@ -10,6 +10,7 @@ import numpy as np
 import glob
 from math import radians
 from sklearn.model_selection import train_test_split
+from sklearn.cluster import DBSCAN
 
 
 RADIUS_EARTH = 6356.7523  # in km, polar radius of Earth
@@ -58,9 +59,6 @@ def get_lon_for_distance(lat, d):
     lon = d / r
     lon = lon * 180.0 / np.pi  # convert to degrees
     return lon
-
-
-from sklearn.cluster import DBSCAN
 
 def cluster_based_on_dist(X, dist):
     '''
@@ -139,8 +137,10 @@ if __name__ == "__main__":
     
     """
 
+    # Read dataset containing all hotspots from one region
     df = pd.read_csv("combined_data.csv")
-    # Round coordinates
+
+    # Round coordinates (Group location that are within 1.1km of each other)
     df["lat_round"] = df["lat"].round(2)
     df["lon_round"] = df["lon"].round(2)
 
@@ -173,10 +173,7 @@ if __name__ == "__main__":
     
     """
 
-    np.random.seed(0)
-    random.seed(0)
     # Reading Hotspot data
-
     locs = pd.read_csv("hotspot_to_include_in_test.csv")
     locs = locs.sample(frac=1).reset_index(drop=True)
 
@@ -201,13 +198,12 @@ if __name__ == "__main__":
 
     splits = make_splits(splits_names, sizes, clusters_dict)
     print([(name, len(splits[name])) for name in splits_names])
-    # Write to text files
 
     # Write to csv files:
     df = locs
     df["split"] = ""
     for name in splits_names:
-        df.loc[splits[name], "split"] = name #.reset_index(drop=True)
+        df.loc[splits[name], "split"] = name 
     df = df.sort_values(by="num_complete_checklists", ascending=False)
     df[df['split'] == 'train'].to_csv('clustered_train_summer.csv', index=False)
     df[df['split'] == 'test'].to_csv('clustered_test_summer.csv', index=False)

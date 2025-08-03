@@ -2,6 +2,8 @@ import pandas as pd
 import os
 import numpy as np
 
+# This script extracts each checklist observations, and saves one .csv file per checklist
+
 col_name_sp = "SCIENTIFIC NAME"
 col_name_loc = "LOCALITY ID"
 event_col = 'SAMPLING EVENT IDENTIFIER'

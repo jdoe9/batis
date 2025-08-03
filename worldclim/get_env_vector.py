@@ -370,10 +370,9 @@ if __name__ == "__main__":
     extractor.add_all_rasters()
 
 
-    #extractor.add_all_rasters()
     print("Number of rasters: {}".format(len(extractor)))
 
-    df_ref = pd.read_csv("hotspots_za_counts_merged_1km_trimmed.csv") #ADD DF TO WHICH WE WANT TO ADD ENV VARIABLES
+    df_ref = pd.read_csv("hotspots_za_counts_merged_1km_trimmed.csv") #DF TO WHICH WE WANT TO ADD ENV VARIABLES
     df_ref = df_ref.drop_duplicates(["hotspot_id"], keep="first")
     print("length of dataframe: {}".format(len(df_ref)))
     var_names = [extractor.rasters_us[i].name for i in range(len(extractor))]

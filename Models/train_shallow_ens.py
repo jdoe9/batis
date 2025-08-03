@@ -1,8 +1,3 @@
-"""
-main training script
-To run: python train.py args.config=$CONFIG_FILE_PATH
-"""
-
 import os
 import hydra
 import sys
@@ -17,9 +12,6 @@ import torch.optim as optim
 import torchvision.models as models
 from src.dataset.dataloader import EbirdVisionDataset
 from src.transforms.transforms import get_transforms
-
-#from pytorch_lightning.callbacks import ModelCheckpoint
-
 from src.utils.config_utils import load_opts
 from src.dataset.dataloader import get_subset
 from src.trainer.utils import get_target_size, get_nb_bands, get_scheduler, init_first_layer_weights, \
@@ -28,9 +20,9 @@ from src.losses.metrics import get_metrics
 
 from src.trainer.trainer import EbirdDataModule
 from src.utils.compute_normalization_stats import *
+import random
 
-#train_hetreg_mac2.py
-# Define your Mean-Variance ResNet18 Model.
+# Model Class for Shallow Ensembles Network
 class Resnet18_Shallow(nn.Module):
     def __init__(self, output_dim, opts, use_sigmoid_mean=True):
         """
@@ -105,9 +97,8 @@ def main():
     default_config = os.path.join(base_dir, "configs/defaults.yaml")
 
     config = load_opts(config_path, default=default_config)
-    global_seed = 877
+    global_seed = random.randint(1, 999)
     print(global_seed)
-    print("SUP")
 
     config.variables.bioclim_means, config.variables.bioclim_std, config.variables.ped_means, config.variables.ped_std = compute_means_stds_env_vars(
             root_dir=config.data.files.base,
@@ -174,16 +165,12 @@ def main():
     val_loader = dm.val_dataloader()
 
     num_epochs = config.max_epochs
-    print("Everything ok so far")
-
     opts = config
 
     for epoch in range(num_epochs):
         print(f"Epoch {epoch+1} / {num_epochs}")
 
-        # ------------------------------
         # Training phase
-        # ------------------------------
         model.train()
         sys.stdout.flush()
 
@@ -233,10 +220,8 @@ def main():
         avg_loss = running_loss / (batch_idx + 1)
         print(f"Epoch {epoch+1}/{num_epochs}, Average Loss: {avg_loss:.4f}")
 
-        # ------------------------------
-        # Validation phase
-        # ------------------------------
 
+        # Validation phase
         model.eval()
         val_loss = 0
         with torch.no_grad():
@@ -264,9 +249,8 @@ def main():
         print(f"Epoch {epoch+1} - Val Loss: {val_loss:.4f}")
         scheduler.step(val_loss)
 
-        # ------------------------------
-        # Test phase (optional)
-        # ------------------------------
+
+        # Test phase
         model.eval()
         test_loss = 0
         with torch.no_grad():
