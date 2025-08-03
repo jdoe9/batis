@@ -12,8 +12,11 @@ This work is licensed under a
 Please run the following code to install the requirements
 
 ```
-conda env create -f requirements.txt
+conda env create -f requirements/environment.yaml     
+conda activate batis
 ```
+
+You can also install the required packages from pip using `requirements/requirements.txt`
 
 ## eBird Data
 
